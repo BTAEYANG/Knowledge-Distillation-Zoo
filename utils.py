@@ -5,6 +5,23 @@ import os
 import shutil
 import numpy as np
 import torch
+from models import ResNet18, ResNet101
+
+
+def define_tsnet(name, num_class, cuda=True):
+    if name == 'resnet18':
+        net = ResNet18(num_classes=num_class)
+    elif name == 'resnet101':
+        net = ResNet101(num_classes=num_class)
+    else:
+        raise Exception('model name does not exist.')
+
+    if cuda:
+        net = torch.nn.DataParallel(net).cuda()
+    else:
+        net = torch.nn.DataParallel(net)
+
+    return net
 
 
 class AverageMeter(object):
