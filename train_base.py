@@ -19,7 +19,7 @@ from utils import AverageMeter, accuracy, transform_time, define_tsnet
 from utils import load_pretrained_model, save_checkpoint
 from utils import create_exp_dir, count_parameters_in_MB
 
-parser = argparse.ArgumentParser(description='train base net')
+parser = argparse.ArgumentParser(description='Train base net')
 
 # various path
 parser.add_argument('--save_root', type=str, default='./results', help='models and logs are saved here')
@@ -27,7 +27,7 @@ parser.add_argument('--img_root', type=str, default='/home/lab265/lab265/dataset
 
 # training hyper parameters
 parser.add_argument('--print_freq', type=int, default=50, help='frequency of showing training results on console')
-parser.add_argument('--epochs', type=int, default=200, help='number of total epochs to run')
+parser.add_argument('--epochs', type=int, default=300, help='number of total epochs to run')
 parser.add_argument('--batch_size', type=int, default=128, help='The size of batch')
 parser.add_argument('--lr', type=float, default=0.1, help='initial learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -67,9 +67,7 @@ def main():
 
     logging.info('----------- Network Initialization --------------')
     net = define_tsnet(name=args.net_name, num_class=args.num_class, cuda=args.cuda)
-    logging.info('%s', net)
-    logging.info("param size = %fMB", count_parameters_in_MB(net))
-    logging.info('-----------------------------------------------')
+    logging.info('----------- Param size = %fMB', count_parameters_in_MB(net))
 
     # save initial parameters
     logging.info('Saving initial parameters......')
@@ -185,10 +183,10 @@ def train(train_loader, net, optimizer, criterion, epoch):
         _, _, _, _, _, out = net(img)
         loss = criterion(out, target)
 
-        prec1, prec5 = accuracy(out, target, topk=(1, 5))
+        pre_1, pre_5 = accuracy(out, target, topk=(1, 5))
         losses.update(loss.item(), img.size(0))
-        top1.update(prec1.item(), img.size(0))
-        top5.update(prec5.item(), img.size(0))
+        top1.update(pre_1.item(), img.size(0))
+        top5.update(pre_5.item(), img.size(0))
 
         optimizer.zero_grad()
         loss.backward()
@@ -201,9 +199,9 @@ def train(train_loader, net, optimizer, criterion, epoch):
             log_str = ('Epoch[{0}]:[{1:03}/{2:03}] '
                        'Time:{batch_time.val:.4f} '
                        'Data:{data_time.val:.4f}  '
-                       'loss:{losses.val:.4f}({losses.avg:.4f})  '
-                       'prec@1:{top1.val:.2f}({top1.avg:.2f})  '
-                       'prec@5:{top5.val:.2f}({top5.avg:.2f})'.format(
+                       'loss:{losses.val:.4f}(avg:{losses.avg:.4f})  '
+                       'prec@1:{top1.val:.2f}(avg:{top1.avg:.2f}%)  '
+                       'prec@5:{top5.val:.2f}(avg:{top5.avg:.2f}%)'.format(
                 epoch, i, len(train_loader), batch_time=batch_time, data_time=data_time,
                 losses=losses, top1=top1, top5=top5))
             logging.info(log_str)
@@ -216,7 +214,6 @@ def test(test_loader, net, criterion):
 
     net.eval()
 
-    end = time.time()
     for i, (img, target) in enumerate(test_loader, start=1):
         if args.cuda:
             img = img.cuda(non_blocking=True)
@@ -226,13 +223,13 @@ def test(test_loader, net, criterion):
             _, _, _, _, _, out = net(img)
             loss = criterion(out, target)
 
-        prec1, prec5 = accuracy(out, target, topk=(1, 5))
+        pre_1, pre_5 = accuracy(out, target, topk=(1, 5))
         losses.update(loss.item(), img.size(0))
-        top1.update(prec1.item(), img.size(0))
-        top5.update(prec5.item(), img.size(0))
+        top1.update(pre_1.item(), img.size(0))
+        top5.update(pre_5.item(), img.size(0))
 
     f_l = [losses.avg, top1.avg, top5.avg]
-    logging.info('Loss: {:.4f}, Prec@1: {:.2f}, Prec@5: {:.2f}'.format(*f_l))
+    logging.info('Loss: {:.4f}, Prec@1: {:.2f}%, Prec@5: {:.2f}%'.format(*f_l))
 
     return top1.avg, top5.avg
 
