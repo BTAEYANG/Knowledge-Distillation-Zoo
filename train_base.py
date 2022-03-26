@@ -15,10 +15,9 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import torchvision.datasets as dst
 
-from utils import AverageMeter, accuracy, transform_time
+from utils import AverageMeter, accuracy, transform_time, define_tsnet
 from utils import load_pretrained_model, save_checkpoint
 from utils import create_exp_dir, count_parameters_in_MB
-from network import define_tsnet
 
 parser = argparse.ArgumentParser(description='train base net')
 
