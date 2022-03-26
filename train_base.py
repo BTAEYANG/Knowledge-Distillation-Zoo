@@ -86,6 +86,9 @@ def main():
                                 weight_decay=args.weight_decay,
                                 nesterov=True)
 
+    # initialize scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+
     # define loss functions
     if args.cuda:
         criterion = torch.nn.CrossEntropyLoss().cuda()
@@ -135,7 +138,9 @@ def main():
     best_top1 = 0
     best_top5 = 0
     for epoch in range(1, args.epochs + 1):
-        adjust_lr(optimizer, epoch)
+        # adjust_lr(optimizer, epoch)
+        current_lr = optimizer.state_dict()['param_groups'][0]['lr']
+        print(f'current_lr：{current_lr}')
 
         # train one epoch
         epoch_start_time = time.time()
@@ -147,6 +152,9 @@ def main():
 
         epoch_duration = time.time() - epoch_start_time
         logging.info('Epoch time: {}s'.format(int(epoch_duration)))
+
+        # scheduler step
+        scheduler.step()
 
         # save model
         is_best = False
@@ -234,16 +242,16 @@ def test(test_loader, net, criterion):
     return top1.avg, top5.avg
 
 
-def adjust_lr(optimizer, epoch):
-    scale = 0.1
-    lr_list = [args.lr] * 100
-    lr_list += [args.lr * scale] * 50
-    lr_list += [args.lr * scale * scale] * 50
-
-    lr = lr_list[epoch - 1]
-    logging.info('Epoch: {}  lr: {:.3f}'.format(epoch, lr))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+# def adjust_lr(optimizer, epoch):
+#     scale = 0.1
+#     lr_list = [args.lr] * 100
+#     lr_list += [args.lr * scale] * 50
+#     lr_list += [args.lr * scale * scale] * 50
+#
+#     lr = lr_list[epoch - 1]
+#     logging.info('Epoch: {}  lr: {:.3f}'.format(epoch, lr))
+#     for param_group in optimizer.param_groups:
+#         param_group['lr'] = lr
 
 
 if __name__ == '__main__':

@@ -16,10 +16,9 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import torchvision.datasets as dst
 
-from utils import AverageMeter, accuracy, transform_time
+from utils import AverageMeter, accuracy, transform_time, define_tsnet
 from utils import load_pretrained_model, save_checkpoint
 from utils import create_exp_dir, count_parameters_in_MB
-from network import define_tsnet
 from kd_losses import *
 
 parser = argparse.ArgumentParser(description='train kd')
@@ -97,7 +96,7 @@ def main():
     logging.info('Student: %s', snet)
     logging.info('Student param size = %fMB', count_parameters_in_MB(snet))
 
-    tnet = define_tsnet(name=args.t_name, num_class=args.num_class, cuda=args.cuda) # initialize teacher net
+    tnet = define_tsnet(name=args.t_name, num_class=args.num_class, cuda=args.cuda)  # initialize teacher net
     checkpoint = torch.load(args.t_model)
     load_pretrained_model(tnet, checkpoint['net'])
     tnet.eval()
@@ -159,15 +158,9 @@ def main():
         for t_c in t_channels:
             criterionKD.append(AFD(t_c, args.att_f).cuda() if args.cuda else AFD(t_c, args.att_f))
         criterionKD = [None] + criterionKD  # None is a placeholder
-    # # t_chws is same with s_chws
-    # s_chws = snet.module.get_chw_num()[1:4]
-    # t_chws = tnet.module.get_chw_num()[1:4]
-    # criterionKD = []
-    # for t_chw in t_chws:
-    # 	criterionKD.append(AFD(t_chw).cuda() if args.cuda else AFD(t_chw))
-    # criterionKD = [None] + criterionKD # None is a placeholder
     else:
         raise Exception('Invalid kd mode...')
+
     if args.cuda:
         criterionCls = torch.nn.CrossEntropyLoss().cuda()
     else:
@@ -187,6 +180,9 @@ def main():
                                     momentum=args.momentum,
                                     weight_decay=args.weight_decay,
                                     nesterov=True)
+
+    # initialize scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # define transforms
     if args.data_name == 'CIFAR10':
@@ -232,7 +228,7 @@ def main():
     nets = {'snet': snet, 'tnet': tnet}
     criterions = {'criterionCls': criterionCls, 'criterionKD': criterionKD}
 
-    # first initilizing the student nets
+    # first init the student nets
     if args.kd_mode in ['fsp', 'ab']:
         logging.info('The first stage, student initialization......')
         train_init(train_loader, nets, optimizer, criterions, 50)
@@ -241,8 +237,11 @@ def main():
 
     best_top1 = 0
     best_top5 = 0
+
     for epoch in range(1, args.epochs + 1):
-        adjust_lr(optimizer, epoch)
+        # adjust_lr(optimizer, epoch)
+        current_lr = optimizer.state_dict()['param_groups'][0]['lr']
+        print(f'current_lr：{current_lr}')
 
         # train one epoch
         epoch_start_time = time.time()
@@ -254,6 +253,8 @@ def main():
 
         epoch_duration = time.time() - epoch_start_time
         logging.info('Epoch time: {}s'.format(int(epoch_duration)))
+
+        scheduler.step()
 
         # save model
         is_best = False
@@ -278,6 +279,7 @@ def train_init(train_loader, nets, optimizer, criterions, total_epoch):
     criterionCls = criterions['criterionCls']
     criterionKD = criterions['criterionKD']
 
+    # student net train
     snet.train()
 
     for epoch in range(1, total_epoch + 1):
@@ -378,6 +380,7 @@ def train(train_loader, nets, optimizer, criterions, epoch):
         stem_t, rb1_t, rb2_t, rb3_t, feat_t, out_t = tnet(img)
 
         cls_loss = criterionCls(out_s, target)
+
         if args.kd_mode in ['logits', 'st']:
             kd_loss = criterionKD(out_s, out_t.detach()) * args.lambda_kd
         elif args.kd_mode in ['fitnet', 'nst']:
@@ -540,16 +543,16 @@ def adjust_lr_init(optimizer, epoch):
         param_group['lr'] = lr
 
 
-def adjust_lr(optimizer, epoch):
-    scale = 0.1
-    lr_list = [args.lr] * 100
-    lr_list += [args.lr * scale] * 50
-    lr_list += [args.lr * scale * scale] * 50
-
-    lr = lr_list[epoch - 1]
-    logging.info('Epoch: {}  lr: {:.3f}'.format(epoch, lr))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+# def adjust_lr(optimizer, epoch):
+#     scale = 0.1
+#     lr_list = [args.lr] * 100
+#     lr_list += [args.lr * scale] * 50
+#     lr_list += [args.lr * scale * scale] * 50
+#
+#     lr = lr_list[epoch - 1]
+#     logging.info('Epoch: {}  lr: {:.3f}'.format(epoch, lr))
+#     for param_group in optimizer.param_groups:
+#         param_group['lr'] = lr
 
 
 if __name__ == '__main__':
