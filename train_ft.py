@@ -26,7 +26,7 @@ parser = argparse.ArgumentParser(description='factor transfer')
 
 # various path
 parser.add_argument('--save_root', type=str, default='./results', help='models and logs are saved here')
-parser.add_argument('--img_root', type=str, default='./datasets', help='path name of image dataset')
+parser.add_argument('--img_root', type=str, default='/home/lab265/lab265/datasets', help='path name of image dataset')
 parser.add_argument('--s_init', type=str, required=True, help='initial parameters of student model')
 parser.add_argument('--t_model', type=str, required=True, help='path name of teacher model')
 
@@ -45,9 +45,9 @@ parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 
 # net and dataset choosen
-parser.add_argument('--data_name', type=str, required=True, help='name of dataset')  # cifar10/cifar100
-parser.add_argument('--t_name', type=str, required=True, help='name of teacher')  # resnet20/resnet110
-parser.add_argument('--s_name', type=str, required=True, help='name of student')  # resnet20/resnet110
+parser.add_argument('--data_name', type=str, required=True, help='name of dataset')  # CIFAR10/CIFAR100
+parser.add_argument('--t_name', type=str, required=True, help='name of teacher')  
+parser.add_argument('--s_name', type=str, required=True, help='name of student')  
 
 # hyper parameter
 parser.add_argument('--lambda_kd', type=float, default=200.0)
@@ -124,11 +124,11 @@ def main():
         criterionPara = torch.nn.MSELoss()
 
     # define transforms
-    if args.data_name == 'cifar10':
+    if args.data_name == 'CIFAR10':
         dataset = dst.CIFAR10
         mean = (0.4914, 0.4822, 0.4465)
         std = (0.2470, 0.2435, 0.2616)
-    elif args.data_name == 'cifar100':
+    elif args.data_name == 'CIFAR100':
         dataset = dst.CIFAR100
         mean = (0.5071, 0.4865, 0.4409)
         std = (0.2673, 0.2564, 0.2762)
