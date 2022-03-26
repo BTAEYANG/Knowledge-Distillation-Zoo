@@ -9,9 +9,9 @@ from models import ResNet18, ResNet101
 
 def define_tsnet(name, num_class, cuda=True):
     if name == 'resnet18':
-        net = ResNet18(num_class=num_class)
+        net = ResNet18(num_classes=num_class)
     elif name == 'resnet101':
-        net = ResNet101(num_class=num_class)
+        net = ResNet101(num_classes=num_class)
     else:
         raise Exception('model name does not exist.')
 
