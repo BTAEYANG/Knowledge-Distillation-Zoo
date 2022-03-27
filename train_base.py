@@ -15,6 +15,7 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import torchvision.datasets as dst
 
+from dataUtils.getData import getDataLoader
 from utils import AverageMeter, accuracy, transform_time, define_tsnet
 from utils import load_pretrained_model, save_checkpoint
 from utils import create_exp_dir, count_parameters_in_MB
@@ -38,6 +39,7 @@ parser.add_argument('--cuda', type=int, default=1)
 # others
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
+parser.add_argument('--split_factor', type=float, default=0.2, help='split factor for dataset produce train val test')
 
 # net and dataset choose
 parser.add_argument('--data_name', type=str, required=True, help='name of dataset')  # CIFAR10 / CIFAR100
@@ -95,45 +97,9 @@ def main():
     else:
         criterion = torch.nn.CrossEntropyLoss()
 
-    # define transforms
-    if args.data_name == 'CIFAR10':
-        dataset = dst.CIFAR10
-        mean = (0.4914, 0.4822, 0.4465)
-        std = (0.2470, 0.2435, 0.2616)
-    elif args.data_name == 'CIFAR100':
-        dataset = dst.CIFAR100
-        mean = (0.5071, 0.4865, 0.4409)
-        std = (0.2673, 0.2564, 0.2762)
-    else:
-        raise Exception('Invalid dataset name...')
-
-    train_transform = transforms.Compose([
-        transforms.Pad(4, padding_mode='reflect'),
-        transforms.RandomCrop(32),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
-    ])
-    test_transform = transforms.Compose([
-        transforms.CenterCrop(32),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
-    ])
-
-    # define data loader
-    root_path = os.path.join(args.img_root, args.data_name)
-    train_loader = torch.utils.data.DataLoader(
-        dataset(root=root_path,
-                transform=train_transform,
-                train=True,
-                download=True),
-        batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(
-        dataset(root=root_path,
-                transform=test_transform,
-                train=False,
-                download=True),
-        batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    # load data_loader
+    train_loader, validation_loader, test_loader = getDataLoader(root_path=args.img_root, split_factor=args.split_factor, seed=args.seed,
+                                                                 data_set=args.data_name)
 
     best_top1 = 0
     best_top5 = 0
@@ -147,8 +113,8 @@ def main():
         train(train_loader, net, optimizer, criterion, epoch)
 
         # evaluate on testing set
-        logging.info('Testing the models......')
-        test_top1, test_top5 = test(test_loader, net, criterion)
+        logging.info('Validation the models......')
+        val_top1, val_top5 = val(validation_loader, net, criterion)
 
         epoch_duration = time.time() - epoch_start_time
         logging.info('Epoch time: {}s'.format(int(epoch_duration)))
@@ -158,16 +124,16 @@ def main():
 
         # save model
         is_best = False
-        if test_top1 > best_top1:
-            best_top1 = test_top1
-            best_top5 = test_top5
+        if val_top1 > best_top1:
+            best_top1 = val_top1
+            best_top5 = val_top5
             is_best = True
         logging.info('Saving models......')
         save_checkpoint({
             'epoch': epoch,
             'net': net.state_dict(),
-            'prec@1': test_top1,
-            'prec@5': test_top5,
+            'prec@1': val_top1,
+            'prec@5': val_top5,
         }, is_best, args.save_root)
 
 
@@ -213,6 +179,33 @@ def train(train_loader, net, optimizer, criterion, epoch):
                 epoch, i, len(train_loader), batch_time=batch_time, data_time=data_time,
                 losses=losses, top1=top1, top5=top5))
             logging.info(log_str)
+
+
+def val(validation_loader, net, criterion):
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+
+    net.eval()
+
+    for i, (img, target) in enumerate(validation_loader, start=1):
+        if args.cuda:
+            img = img.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
+
+        with torch.no_grad():
+            _, _, _, _, _, out = net(img)
+            loss = criterion(out, target)
+
+        pre_1, pre_5 = accuracy(out, target, topk=(1, 5))
+        losses.update(loss.item(), img.size(0))
+        top1.update(pre_1.item(), img.size(0))
+        top5.update(pre_5.item(), img.size(0))
+
+    f_l = [losses.avg, top1.avg, top5.avg]
+    logging.info('Loss: {:.4f}, Prec@1: {:.2f}%, Prec@5: {:.2f}%'.format(*f_l))
+
+    return top1.avg, top5.avg
 
 
 def test(test_loader, net, criterion):
