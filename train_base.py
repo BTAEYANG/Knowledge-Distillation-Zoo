@@ -40,6 +40,7 @@ parser.add_argument('--cuda', type=int, default=1)
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--split_factor', type=float, default=0.2, help='split factor for dataset produce train val test')
+parser.add_argument('--gpu_dataParallel', type=bool, default=False, help='use gpu data parallel')
 
 # net and dataset choose
 parser.add_argument('--data_name', type=str, required=True, help='name of dataset')  # CIFAR10 / CIFAR100
@@ -71,7 +72,8 @@ def main():
         torch.cuda.manual_seed(args.seed)
         cudnn.enabled = True
         cudnn.benchmark = True
-        # net = torch.nn.DataParallel(net)
+    if args.gpu_dataParallel:
+        net = torch.nn.DataParallel(net)
 
     # save initial parameters
     logging.info('Saving initial parameters......')
