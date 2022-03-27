@@ -71,7 +71,7 @@ def main():
         torch.cuda.manual_seed(args.seed)
         cudnn.enabled = True
         cudnn.benchmark = True
-        net = torch.nn.DataParallel(net)
+        # net = torch.nn.DataParallel(net)
 
     # save initial parameters
     logging.info('Saving initial parameters......')
