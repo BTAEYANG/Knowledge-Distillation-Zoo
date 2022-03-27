@@ -27,13 +27,13 @@ parser.add_argument('--save_root', type=str, default='./results', help='models a
 parser.add_argument('--img_root', type=str, default='/home/lab265/lab265/datasets', help='path name of image dataset')
 
 # training hyper parameters
-parser.add_argument('--print_freq', type=int, default=50, help='frequency of showing training results on console')
+parser.add_argument('--print_freq', type=int, default=100, help='frequency of showing training results on console')
 parser.add_argument('--epochs', type=int, default=300, help='number of total epochs to run')
 parser.add_argument('--batch_size', type=int, default=128, help='The size of batch')
 parser.add_argument('--lr', type=float, default=0.1, help='initial learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
-parser.add_argument('--num_class', type=int, default=10, help='number of classes')
+parser.add_argument('--num_class', type=int, default=100, help='number of classes')
 parser.add_argument('--cuda', type=int, default=1)
 
 # others
@@ -60,16 +60,18 @@ logging.getLogger().addHandler(fh)
 def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if args.cuda:
-        torch.cuda.manual_seed(args.seed)
-        cudnn.enabled = True
-        cudnn.benchmark = True
     logging.info("args = %s", args)
     logging.info("unparsed_args = %s", unparsed)
 
     logging.info('----------- Network Initialization --------------')
     net = define_tsnet(name=args.net_name, num_class=args.num_class, cuda=args.cuda)
     logging.info('----------- Param size = %fMB', count_parameters_in_MB(net))
+
+    if args.cuda:
+        torch.cuda.manual_seed(args.seed)
+        cudnn.enabled = True
+        cudnn.benchmark = True
+        net = torch.nn.DataParallel(net)
 
     # save initial parameters
     logging.info('Saving initial parameters......')
@@ -98,7 +100,8 @@ def main():
         criterion = torch.nn.CrossEntropyLoss()
 
     # load data_loader
-    train_loader, validation_loader, test_loader = getDataLoader(root_path=args.img_root, split_factor=args.split_factor, seed=args.seed,
+    train_loader, validation_loader, test_loader = getDataLoader(root_path=args.img_root,
+                                                                 split_factor=args.split_factor, seed=args.seed,
                                                                  data_set=args.data_name)
 
     best_top1 = 0
